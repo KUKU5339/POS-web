@@ -4,25 +4,36 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\Sale;
-use App\Models\User; // <- add this
 
 class DashboardController extends Controller
 {
-    public function index() {
-        $totalSales = Sale::sum('total');
-        $totalProducts = Product::count();
-        $totalItemsSold = Sale::sum('quantity'); // total items sold
-        $totalUsers = User::count(); // <- add this
-        $lowStock = Product::where('stock', '<=', 5)->get(); // alert for low stock
-        $products = Product::all(); // all products for table in dashboard
-        $sales = Sale::with('product')->latest()->get(); // sales table
+    public function index()
+    {
+        $userId = auth()->id();
 
-        // Top 5 Best Sellers
-        $topProducts = Product::withSum('sales', 'quantity')
+        // Only count/sum data belonging to the current user
+        $totalSales = Sale::where('user_id', $userId)->sum('total');
+        $totalProducts = Product::where('user_id', $userId)->count();
+        $totalItemsSold = Sale::where('user_id', $userId)->sum('quantity');
+
+        $lowStock = Product::where('user_id', $userId)
+            ->where('stock', '<=', 5)
+            ->get();
+
+        $products = Product::where('user_id', $userId)->get();
+
+        $sales = Sale::with('product')
+            ->where('user_id', $userId)
+            ->latest()
+            ->get();
+
+        // Top 5 Best Sellers - only from this user's products
+        $topProducts = Product::where('user_id', $userId)
+            ->withSum('sales', 'quantity')
             ->orderBy('sales_sum_quantity', 'desc')
             ->take(5)
             ->get()
-            ->map(function($p) {
+            ->map(function ($p) {
                 $p->total_sold = $p->sales_sum_quantity ?? 0;
                 return $p;
             });
@@ -31,7 +42,6 @@ class DashboardController extends Controller
             'totalSales',
             'totalProducts',
             'totalItemsSold',
-            'totalUsers',  // <- add this
             'lowStock',
             'products',
             'sales',

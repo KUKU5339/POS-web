@@ -1,98 +1,277 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-    <title>Receipt</title>
+    <title>Receipt #{{ $sale->id }}</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            width: 320px;
-            margin: 0 auto;
-            padding: 10px;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-        .header {
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: #f5f5f5;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .receipt-container {
+            width: 100%;
+            max-width: 320px;
+            background: #fff;
+            padding: 20px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            border: 2px dashed #ddd;
+        }
+
+        .receipt-header {
             text-align: center;
+            border-bottom: 2px dashed #333;
+            padding-bottom: 15px;
+            margin-bottom: 15px;
+        }
+
+        .store-name {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .store-tagline {
+            font-size: 11px;
+            color: #666;
             margin-bottom: 10px;
         }
-        .header h2 {
-            margin: 0;
+
+        .receipt-info {
+            font-size: 11px;
+            color: #666;
+            line-height: 1.4;
         }
-        .items {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 15px;
+
+        .receipt-body {
+            margin: 15px 0;
         }
-        .items th, .items td {
-            border-bottom: 1px solid #000;
-            padding: 5px;
-            text-align: left;
-        }
-        .total {
-            text-align: right;
-            margin-top: 10px;
+
+        .section-title {
+            font-size: 12px;
             font-weight: bold;
+            border-bottom: 1px solid #333;
+            padding-bottom: 5px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+
+        .item-row {
+            margin-bottom: 10px;
+            font-size: 12px;
+        }
+
+        .item-name {
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
+
+        .item-details {
+            display: flex;
+            justify-content: space-between;
+            color: #666;
+            font-size: 11px;
+        }
+
+        .receipt-totals {
+            border-top: 2px dashed #333;
+            padding-top: 10px;
+            margin-top: 10px;
+        }
+
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+
+        .total-row.grand-total {
             font-size: 16px;
+            font-weight: bold;
+            border-top: 1px solid #333;
+            padding-top: 8px;
+            margin-top: 8px;
         }
-        .footer {
+
+        .receipt-footer {
             text-align: center;
+            border-top: 2px dashed #333;
+            padding-top: 15px;
             margin-top: 15px;
-            font-size: 14px;
+            font-size: 11px;
         }
+
+        .thank-you {
+            font-weight: bold;
+            margin-bottom: 5px;
+            font-size: 13px;
+        }
+
+        .footer-message {
+            color: #666;
+            line-height: 1.4;
+            margin-bottom: 15px;
+        }
+
+        .action-buttons {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
         .btn {
-            display: block;
-            width: 100%;
-            padding: 10px;
-            margin-top: 15px;
-            text-align: center;
-            color: #fff;
-            text-decoration: none;
-            font-size: 16px;
-            cursor: pointer;
-        }
-        .btn-print {
-            background-color: #4CAF50;
+            flex: 1;
+            padding: 12px;
             border: none;
+            border-radius: 5px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+            transition: all 0.3s;
         }
+
+        .btn-print {
+            background: #4CAF50;
+            color: white;
+        }
+
         .btn-print:hover {
-            background-color: #45a049;
+            background: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
+
         .btn-pdf {
-            background-color: #2196F3;
+            background: #2196F3;
+            color: white;
         }
+
         .btn-pdf:hover {
-            background-color: #0b7dda;
+            background: #0b7dda;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-back {
+            background: #9E9E9E;
+            color: white;
+        }
+
+        .btn-back:hover {
+            background: #757575;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+
+            .receipt-container {
+                box-shadow: none;
+                border: none;
+                max-width: 100%;
+            }
+
+            .action-buttons {
+                display: none;
+            }
+        }
+
+        @media (max-width: 400px) {
+            body {
+                padding: 10px;
+            }
+
+            .receipt-container {
+                padding: 15px;
+            }
         }
     </style>
 </head>
+
 <body>
 
-<div class="header">
-    <h2>Street Food POS</h2>
-    <p>Sale ID: {{ $sale->id }}</p>
-    <p>Date: {{ $sale->created_at->format('Y-m-d H:i') }}</p>
-</div>
+    <div class="receipt-container">
+        <!-- Header -->
+        <div class="receipt-header">
+            <div class="store-name">🍢 StreetPOS</div>
+            <div class="store-tagline">Your Neighborhood Street Food</div>
+            <div class="receipt-info">
+                <div>Receipt #: {{ str_pad($sale->id, 6, '0', STR_PAD_LEFT) }}</div>
+                <div>Date: {{ $sale->created_at->format('M d, Y') }}</div>
+                <div>Time: {{ $sale->created_at->format('h:i A') }}</div>
+                <div>Cashier: {{ $sale->user->name ?? 'N/A' }}</div>
+            </div>
+        </div>
 
-<table class="items">
-    <tr>
-        <th>Item</th>
-        <th>Qty</th>
-        <th>Price</th>
-        <th>Subtotal</th>
-    </tr>
-    <tr>
-        <td>{{ $sale->product->name }}</td>
-        <td>{{ $sale->quantity }}</td>
-        <td>{{ number_format($sale->product->price, 2) }}</td>
-        <td>{{ number_format($sale->subtotal, 2) }}</td>
-    </tr>
-</table>
+        <!-- Body -->
+        <div class="receipt-body">
+            <div class="section-title">Order Details</div>
 
-<p class="total">Total: {{ number_format($sale->total, 2) }}</p>
+            <div class="item-row">
+                <div class="item-name">{{ $sale->product->name }}</div>
+                <div class="item-details">
+                    <span>{{ $sale->quantity }} × ₱{{ number_format($sale->product->price, 2) }}</span>
+                    <span>₱{{ number_format($sale->total, 2) }}</span>
+                </div>
+            </div>
+        </div>
 
-<div class="footer">
-    <p>Thank you for your purchase!</p>
-    <button class="btn btn-print" onclick="window.print();">Print Receipt</button>
-    <a href="{{ route('sales.receipt.pdf', $sale->id) }}" class="btn btn-pdf">Download PDF</a>
-</div>
+        <!-- Totals -->
+        <div class="receipt-totals">
+            <div class="total-row">
+                <span>Subtotal:</span>
+                <span>₱{{ number_format($sale->total, 2) }}</span>
+            </div>
+            <div class="total-row grand-total">
+                <span>TOTAL:</span>
+                <span>₱{{ number_format($sale->total, 2) }}</span>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="receipt-footer">
+            <div class="thank-you">SALAMAT PO! 🙏</div>
+            <div class="footer-message">
+                Thank you for your purchase!<br>
+                Come again soon! 😊
+            </div>
+        </div>
+
+        <!-- Action Buttons (hidden when printing) -->
+        <div class="action-buttons">
+            <button class="btn btn-print" onclick="window.print();">
+                🖨️ Print
+            </button>
+            <a href="{{ route('sales.receipt.pdf', $sale->id) }}" class="btn btn-pdf">
+                📄 PDF
+            </a>
+            <a href="{{ route('sales.quick') }}" class="btn btn-back">
+                ← Back
+            </a>
+        </div>
+    </div>
 
 </body>
+
 </html>

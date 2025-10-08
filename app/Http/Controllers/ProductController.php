@@ -8,9 +8,9 @@ use Illuminate\Support\Facades\Storage;
 
 class ProductController extends Controller
 {
-    // Index with search
-    public function index(Request $request) {
-        $query = Product::query();
+    public function index(Request $request)
+    {
+        $query = Product::where('user_id', auth()->id());
 
         if ($request->has('search') && $request->search != '') {
             $query->where('name', 'like', '%' . $request->search . '%');
@@ -20,19 +20,22 @@ class ProductController extends Controller
         return view('products.index', compact('products'));
     }
 
-    public function create() {
+    public function create()
+    {
         return view('products.create');
     }
 
-    public function store(Request $request) {
+    public function store(Request $request)
+    {
         $request->validate([
             'name' => 'required',
             'price' => 'required|numeric',
             'stock' => 'required|integer',
-            'image' => 'nullable|image|mimes:jpg,jpeg,png|max:2048'
+            'image' => 'nullable|image|mimes:jpg,jpeg,png|max:5120'
         ]);
 
         $data = $request->only(['name', 'price', 'stock']);
+        $data['user_id'] = auth()->id();
 
         if ($request->hasFile('image')) {
             $path = $request->file('image')->store('products', 'public');
@@ -40,42 +43,53 @@ class ProductController extends Controller
         }
 
         Product::create($data);
-
         return redirect()->route('products.index')->with('success', 'Product added!');
     }
 
-    public function edit(Product $product) {
+    public function edit(Product $product)
+    {
+        // Check if product belongs to current user
+        if ($product->user_id !== auth()->id()) {
+            abort(403);
+        }
         return view('products.edit', compact('product'));
     }
 
-    public function update(Request $request, Product $product) {
+    public function update(Request $request, Product $product)
+    {
+        // Check if product belongs to current user
+        if ($product->user_id !== auth()->id()) {
+            abort(403);
+        }
+
         $request->validate([
             'name' => 'required',
             'price' => 'required|numeric',
             'stock' => 'required|integer',
-            'image' => 'nullable|image|mimes:jpg,jpeg,png|max:2048'
+            'image' => 'nullable|image|mimes:jpg,jpeg,png|max:5120'
         ]);
 
         $data = $request->only(['name', 'price', 'stock']);
 
         if ($request->hasFile('image')) {
-            // delete old image if exists
             if ($product->image && Storage::disk('public')->exists($product->image)) {
                 Storage::disk('public')->delete($product->image);
             }
-
-            // save new one
             $path = $request->file('image')->store('products', 'public');
             $data['image'] = $path;
         }
 
         $product->update($data);
-
         return redirect()->route('products.index')->with('success', 'Product updated!');
     }
 
-    public function destroy(Product $product) {
-        // delete image when deleting product
+    public function destroy(Product $product)
+    {
+        // Check if product belongs to current user
+        if ($product->user_id !== auth()->id()) {
+            abort(403);
+        }
+
         if ($product->image && Storage::disk('public')->exists($product->image)) {
             Storage::disk('public')->delete($product->image);
         }

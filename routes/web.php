@@ -2,8 +2,10 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\SaleController;
+use App\Http\Controllers\StockAlertController;
 use Illuminate\Support\Facades\Route;
 
 // Login & Register routes
@@ -29,4 +31,18 @@ Route::middleware('auth')->group(function () {
     Route::post('/sales', [SaleController::class, 'store'])->name('sales.store');
     Route::get('/sales/{id}/receipt', [SaleController::class, 'generateReceipt'])->name('sales.receipt');
     Route::get('/sales/{id}/receipt/pdf', [SaleController::class, 'downloadReceiptPdf'])->name('sales.receipt.pdf');
+
+    // Quicksale
+    Route::get('/quick-sale', [SaleController::class, 'quickSale'])->name('sales.quick');
+
+    // Expenses & Profit Calculator
+    Route::get('/expenses', [ExpenseController::class, 'index'])->name('expenses.index');
+    Route::post('/expenses', [ExpenseController::class, 'store'])->name('expenses.store');
+    Route::delete('/expenses/{expense}', [ExpenseController::class, 'destroy'])->name('expenses.destroy');
+    
+    // Stock Alerts
+    Route::get('/stock-alerts', [StockAlertController::class, 'index'])->name('stock-alerts.index');
+    Route::post('/stock-alerts/threshold', [StockAlertController::class, 'updateThreshold'])->name('stock-alerts.threshold');
+    Route::post('/stock-alerts/toggle', [StockAlertController::class, 'toggleAlerts'])->name('stock-alerts.toggle');
+    Route::get('/stock-alerts/shopping-list', [StockAlertController::class, 'generateShoppingList'])->name('stock-alerts.shopping-list');
 });
