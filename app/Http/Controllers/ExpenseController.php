@@ -69,7 +69,7 @@ class ExpenseController extends Controller
             'expense_date' => $request->expense_date
         ]);
 
-        return back()->with('success', 'Expense added successfully!');
+        return redirect()->route('expenses.index', ['date' => $request->expense_date, 't' => time()])->with('success', 'Expense added successfully!');
     }
 
     public function destroy(Expense $expense)
@@ -79,7 +79,8 @@ class ExpenseController extends Controller
             abort(403);
         }
 
+        $expenseDate = $expense->expense_date;
         $expense->delete();
-        return back()->with('success', 'Expense deleted!');
+        return redirect()->route('expenses.index', ['date' => $expenseDate, 't' => time()])->with('success', 'Expense deleted!');
     }
 }

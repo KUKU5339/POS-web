@@ -43,7 +43,7 @@ class ProductController extends Controller
         }
 
         Product::create($data);
-        return redirect()->route('products.index')->with('success', 'Product added!');
+        return redirect()->route('products.index', ['t' => time()])->with('success', 'Product added!');
     }
 
     public function edit(Product $product)
@@ -80,7 +80,7 @@ class ProductController extends Controller
         }
 
         $product->update($data);
-        return redirect()->route('products.index')->with('success', 'Product updated!');
+        return redirect()->route('products.index', ['t' => time()])->with('success', 'Product updated!');
     }
 
     public function destroy(Product $product)
@@ -95,6 +95,35 @@ class ProductController extends Controller
         }
 
         $product->delete();
-        return redirect()->route('products.index')->with('success', 'Product deleted!');
+        return redirect()->route('products.index', ['t' => time()])->with('success', 'Product deleted!');
+    }
+
+    public function syncOfflineProduct(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'name' => 'required|string|max:255',
+                'price' => 'required|numeric|min:0',
+                'stock' => 'required|integer|min:0'
+            ]);
+
+            Product::create([
+                'user_id' => auth()->id(),
+                'name' => $validated['name'],
+                'price' => $validated['price'],
+                'stock' => $validated['stock'],
+                'image' => null // No image from offline creation
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Product synced successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }

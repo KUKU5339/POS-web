@@ -404,3 +404,36 @@
 </div>
 
 @endsection
+
+@push('scripts')
+<script>
+    // Send notification if there are low stock items
+    window.addEventListener('load', () => {
+        const outOfStockCount = {{ $outOfStock->count() }};
+        const lowStockCount = {{ $lowStockProducts->count() }};
+
+        if (outOfStockCount > 0 || lowStockCount > 0) {
+            // Check if we can send notifications
+            if ('showNotification' in window.parent) {
+                let message = '';
+                if (outOfStockCount > 0) {
+                    message = `⚠️ ${outOfStockCount} product(s) out of stock!`;
+                } else if (lowStockCount > 0) {
+                    message = `📉 ${lowStockCount} product(s) running low on stock`;
+                }
+
+                // Send notification via parent window function
+                setTimeout(() => {
+                    if (typeof showNotification === 'function') {
+                        showNotification('Stock Alert - StreetPOS', {
+                            body: message,
+                            tag: 'stock-alert',
+                            requireInteraction: true
+                        });
+                    }
+                }, 1000);
+            }
+        }
+    });
+</script>
+@endpush

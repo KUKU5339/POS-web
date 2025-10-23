@@ -246,6 +246,17 @@
             grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
         }
     }
+
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateX(-50%) translateY(-20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+    }
 </style>
 
 <div class="products-container">
@@ -346,11 +357,59 @@
 <!-- Add Sidebar -->
 <div id="addSidebar" style="position:fixed; top:0; right:-100%; width:90%; max-width:400px; height:100%; background:#fff; border-left:4px solid #800000; box-shadow:-2px 0 8px rgba(0,0,0,0.3); padding:20px; transition:right 0.3s ease; overflow-y:auto; z-index:1000;">
     <h3 style="color:#800000; margin-bottom:15px;">➕ Add Product</h3>
-    <form method="POST" action="{{ route('products.store') }}" enctype="multipart/form-data">
+    <form id="addProductForm" method="POST" action="{{ route('products.store') }}" enctype="multipart/form-data">
         @csrf
         <div style="margin-bottom:12px;">
-            <label><b>Name:</b></label>
-            <input type="text" name="name" required style="width:100%; padding:10px; border:1px solid #ccc; border-radius:5px;">
+            <label><b>Street Food Item:</b></label>
+            <select name="name" required style="width:100%; padding:10px; border:1px solid #ccc; border-radius:5px; background:#fff;">
+                <option value="">-- Select Street Food --</option>
+                <optgroup label="Grilled/BBQ">
+                    <option value="Isaw (Chicken Intestine)">Isaw (Chicken Intestine)</option>
+                    <option value="Betamax (Blood Cake)">Betamax (Blood Cake)</option>
+                    <option value="Chicken Barbecue">Chicken Barbecue</option>
+                    <option value="Pork Barbecue">Pork Barbecue</option>
+                    <option value="Adidas (Chicken Feet)">Adidas (Chicken Feet)</option>
+                    <option value="Helmet (Chicken Head)">Helmet (Chicken Head)</option>
+                    <option value="IUD (Chicken Butt)">IUD (Chicken Butt)</option>
+                </optgroup>
+                <optgroup label="Fried">
+                    <option value="Kwek-Kwek (Orange Quail Eggs)">Kwek-Kwek (Orange Quail Eggs)</option>
+                    <option value="Tokneneng (Orange Chicken Eggs)">Tokneneng (Orange Chicken Eggs)</option>
+                    <option value="Fish Ball">Fish Ball</option>
+                    <option value="Squid Ball">Squid Ball</option>
+                    <option value="Kikiam">Kikiam</option>
+                    <option value="Chicken Skin">Chicken Skin</option>
+                    <option value="Banana Cue">Banana Cue</option>
+                    <option value="Camote Cue">Camote Cue</option>
+                    <option value="Turon">Turon</option>
+                </optgroup>
+                <optgroup label="Noodles & Rice">
+                    <option value="Pancit Canton">Pancit Canton</option>
+                    <option value="Palabok">Palabok</option>
+                    <option value="Siomai">Siomai</option>
+                    <option value="Lugaw">Lugaw</option>
+                    <option value="Goto">Goto</option>
+                </optgroup>
+                <optgroup label="Snacks">
+                    <option value="Taho">Taho</option>
+                    <option value="Dirty Ice Cream">Dirty Ice Cream</option>
+                    <option value="Mais (Corn)">Mais (Corn)</option>
+                    <option value="Balut">Balut</option>
+                    <option value="Penoy">Penoy</option>
+                </optgroup>
+                <optgroup label="Drinks">
+                    <option value="Sago't Gulaman">Sago't Gulaman</option>
+                    <option value="Buko Juice">Buko Juice</option>
+                    <option value="Melon Juice">Melon Juice</option>
+                </optgroup>
+                <optgroup label="Other">
+                    <option value="Custom Item">Custom Item (Type your own)</option>
+                </optgroup>
+            </select>
+        </div>
+        <div id="customNameField" style="margin-bottom:12px; display:none;">
+            <label><b>Custom Item Name:</b></label>
+            <input type="text" id="customNameInput" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:5px;">
         </div>
         <div style="margin-bottom:12px;">
             <label><b>Price:</b></label>
@@ -429,6 +488,216 @@
         document.getElementById("editSidebar").style.right = "-100%";
         document.getElementById("overlay").style.display = "none";
     }
+
+    // Show banner for pending products
+    function showPendingProductsBanner(count) {
+        // Remove existing banner if any
+        const existingBanner = document.getElementById('pendingProductsBanner');
+        if (existingBanner) {
+            existingBanner.remove();
+        }
+
+        // Create new banner
+        const banner = document.createElement('div');
+        banner.id = 'pendingProductsBanner';
+        banner.style.cssText = `
+            position: fixed;
+            top: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #ff9800, #f57c00);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 9998;
+            font-weight: 600;
+            animation: slideDown 0.3s;
+            cursor: pointer;
+            text-align: center;
+            max-width: 90%;
+        `;
+        banner.innerHTML = `
+            <i class="fas fa-clock"></i>
+            ${count} product${count > 1 ? 's' : ''} pending sync
+            <br>
+            <small style="font-size: 12px; font-weight: normal;">Will sync when you're back online</small>
+        `;
+
+        banner.onclick = function() {
+            alert('You have ' + count + ' product(s) waiting to sync.\n\nThey will automatically sync when you connect to the internet.');
+        };
+
+        document.body.appendChild(banner);
+    }
+
+    // Check for pending products on page load and show banner
+    function checkPendingProducts() {
+        const pendingProducts = JSON.parse(localStorage.getItem('pendingProducts') || '[]');
+        if (pendingProducts.length > 0 && !navigator.onLine) {
+            showPendingProductsBanner(pendingProducts.length);
+        }
+    }
+
+    // Call on page load
+    checkPendingProducts();
+
+    // Handle custom item selection
+    const nameSelect = document.querySelector('select[name="name"]');
+    const customNameField = document.getElementById('customNameField');
+    const customNameInput = document.getElementById('customNameInput');
+
+    if (nameSelect) {
+        nameSelect.addEventListener('change', function() {
+            if (this.value === 'Custom Item') {
+                customNameField.style.display = 'block';
+                customNameInput.required = true;
+            } else {
+                customNameField.style.display = 'none';
+                customNameInput.required = false;
+            }
+        });
+    }
+
+    // Function to initialize form handlers
+    function initializeFormHandlers() {
+        console.log('🔧 Initializing form handlers...');
+        console.log('Current online status on page load:', navigator.onLine);
+
+        // Handle offline product creation
+        const addForm = document.getElementById('addProductForm');
+        if (addForm) {
+            console.log('✅ Found add product form');
+            console.log('Form action:', addForm.action);
+            console.log('Form method:', addForm.method);
+
+            addForm.addEventListener('submit', function(e) {
+                // ALWAYS prevent default FIRST - critical!
+                e.preventDefault();
+                e.stopPropagation();
+
+                console.log('🔔 SUBMIT EVENT FIRED!');
+                console.log('📝 Form submitted, online status:', navigator.onLine);
+                console.log('Event default prevented?', e.defaultPrevented);
+
+                const formData = new FormData(this);
+                let name = formData.get('name');
+                const price = parseFloat(formData.get('price'));
+                const stock = parseInt(formData.get('stock'));
+
+                // If "Custom Item" is selected, use the custom name instead
+                if (name === 'Custom Item') {
+                    const customName = document.getElementById('customNameInput').value.trim();
+                    if (!customName) {
+                        alert('❌ Please enter a custom item name');
+                        return false;
+                    }
+                    name = customName;
+                    // Update the select value to the custom name for submission
+                    this.querySelector('select[name="name"]').value = name;
+                    // Or better, add it as a hidden field
+                    const hiddenInput = document.createElement('input');
+                    hiddenInput.type = 'hidden';
+                    hiddenInput.name = 'name';
+                    hiddenInput.value = name;
+                    this.appendChild(hiddenInput);
+                    this.querySelector('select[name="name"]').removeAttribute('name');
+                }
+
+                console.log('Form data:', { name, price, stock });
+
+                // Validate input
+                if (!name || !price || !stock || isNaN(price) || isNaN(stock)) {
+                    console.log('❌ Validation failed - preventing submission');
+                    alert('❌ Please fill all required fields correctly');
+                    return false;
+                }
+
+                // Check offline status
+                if (!navigator.onLine) {
+                    console.log('📴 Offline detected - saving to localStorage');
+                    // Make absolutely sure the form doesn't submit
+                    // Save to localStorage when offline
+                    const pendingProducts = JSON.parse(localStorage.getItem('pendingProducts') || '[]');
+
+                    const productData = {
+                        name: name,
+                        price: price,
+                        stock: stock,
+                        timestamp: new Date().toISOString()
+                    };
+
+                    pendingProducts.push(productData);
+                    localStorage.setItem('pendingProducts', JSON.stringify(pendingProducts));
+
+                    console.log('✅ Product saved offline:', productData);
+                    console.log('📦 Total pending products:', pendingProducts.length);
+
+                    // Show success message
+                    alert('✅ Product saved offline!\n\nProduct: ' + name + '\nPrice: ₱' + price.toFixed(2) + '\nStock: ' + stock + '\n\n' + pendingProducts.length + ' product(s) waiting to sync.\n\nThey will automatically sync when you\'re back online.');
+
+                    closeSidebars();
+                    this.reset();
+
+                    // Show a banner about pending products
+                    showPendingProductsBanner(pendingProducts.length);
+
+                    return false;
+                }
+
+                // When online, submit the form
+                console.log('✅ Online - submitting form');
+                // We already called preventDefault, so now we need to manually submit
+                // Use the native submit method to bypass event listeners
+                HTMLFormElement.prototype.submit.call(this);
+            });
+        } else {
+            console.error('❌ Add product form not found!');
+        }
+
+        // Handle offline product editing
+        const editForm = document.querySelector('#editForm');
+        if (editForm) {
+            editForm.addEventListener('submit', function(e) {
+                const isOffline = !navigator.onLine;
+
+                if (isOffline) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    alert('❌ Cannot edit products while offline\n\nProduct updates require an internet connection.\n\nPlease connect to WiFi and try again.');
+                    return false;
+                }
+
+                return true;
+            });
+        }
+    }
+
+    // Initialize handlers when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializeFormHandlers);
+    } else {
+        // DOM is already loaded
+        initializeFormHandlers();
+    }
+
+    // Handle image errors when offline
+    document.addEventListener('DOMContentLoaded', function() {
+        const productImages = document.querySelectorAll('.product-image');
+
+        productImages.forEach(img => {
+            img.addEventListener('error', function() {
+                // Replace failed image with offline message
+                const container = this.parentElement;
+                container.innerHTML = `
+                    <div style="width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; background:#f5f5f5; color:#999; padding:20px; text-align:center;">
+                        <i class="fas fa-wifi-slash" style="font-size:32px; margin-bottom:10px;"></i>
+                        <p style="margin:0; font-size:12px;">Connect to view image</p>
+                    </div>
+                `;
+            });
+        });
+    });
 </script>
 
 @endsection

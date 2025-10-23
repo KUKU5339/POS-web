@@ -5,6 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>{{ config('app.name', 'StreetPOS') }}</title>
 
     <!-- PWA Manifest -->
@@ -15,6 +18,9 @@
     <meta name="apple-mobile-web-app-title" content="StreetPOS">
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Offline Database -->
+    <script src="/offline-db.js"></script>
 
     <style>
         * {
@@ -501,6 +507,9 @@
         <a href="{{ route('stock-alerts.index') }}" class="{{ request()->routeIs('stock-alerts.*') ? 'active' : '' }}">
             <i class="fas fa-bell"></i> Stock Alerts
         </a>
+        <a href="{{ route('reports.daily-sales') }}" class="{{ request()->routeIs('reports.*') ? 'active' : '' }}">
+            <i class="fas fa-chart-bar"></i> Sales Report
+        </a>
         <a href="#" class="logout" onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
             <i class="fas fa-sign-out-alt"></i> Logout
         </a>
@@ -523,7 +532,6 @@
         function toggleNotifications() {
             const notifDropdown = document.getElementById('notificationDropdown');
             const qrDropdown = document.getElementById('qrDropdown');
-
             notifDropdown.classList.toggle('active');
             qrDropdown.classList.remove('active');
         }
@@ -531,7 +539,6 @@
         function toggleQR() {
             const qrDropdown = document.getElementById('qrDropdown');
             const notifDropdown = document.getElementById('notificationDropdown');
-
             qrDropdown.classList.toggle('active');
             notifDropdown.classList.remove('active');
         }
@@ -552,7 +559,356 @@
                 });
             });
         }
+
+        // Register Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(registration => {
+                        console.log('✅ ServiceWorker registered:', registration.scope);
+                    })
+                    .catch(err => {
+                        console.log('❌ ServiceWorker registration failed:', err);
+                    });
+            });
+        }
+
+        // Online/Offline Detection
+        const offlineIndicator = document.getElementById('offline-indicator');
+
+        window.addEventListener('online', () => {
+            offlineIndicator.style.display = 'none';
+            console.log('🌐 Back online!');
+            showToast('✅ Back online! Syncing data...', 'success');
+            setTimeout(() => {
+                syncPendingData();
+            }, 1000);
+        });
+
+        window.addEventListener('offline', () => {
+            offlineIndicator.style.display = 'block';
+            console.log('📴 Gone offline!');
+            showToast('📴 You are now offline', 'warning');
+        });
+
+        // Check initial status
+        if (!navigator.onLine) {
+            offlineIndicator.style.display = 'block';
+        }
+
+        // PWA Install Prompt
+        let deferredPrompt;
+        const installPrompt = document.getElementById('install-prompt');
+        const installButton = document.getElementById('install-button');
+        const dismissButton = document.getElementById('dismiss-button');
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+
+            if (!localStorage.getItem('pwa-dismissed')) {
+                setTimeout(() => {
+                    installPrompt.style.display = 'block';
+                }, 3000);
+            }
+        });
+
+        installButton.addEventListener('click', async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const {
+                    outcome
+                } = await deferredPrompt.userChoice;
+                console.log(`User response: ${outcome}`);
+                deferredPrompt = null;
+                installPrompt.style.display = 'none';
+            }
+        });
+
+        dismissButton.addEventListener('click', () => {
+            installPrompt.style.display = 'none';
+            localStorage.setItem('pwa-dismissed', 'true');
+        });
+
+        // Sync pending data when back online
+        async function syncPendingData() {
+            try {
+                // Sync pending products from localStorage
+                const pendingProducts = JSON.parse(localStorage.getItem('pendingProducts') || '[]');
+                let productSyncedCount = 0;
+                let productFailedCount = 0;
+
+                if (pendingProducts.length > 0) {
+                    console.log('📤 Syncing', pendingProducts.length, 'pending products...');
+                    showToast('🔄 Syncing ' + pendingProducts.length + ' offline products...', 'info');
+
+                    for (const product of pendingProducts) {
+                        try {
+                            const response = await fetch('/api/sync-product', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                                },
+                                body: JSON.stringify(product)
+                            });
+
+                            const data = await response.json();
+
+                            if (data.success) {
+                                productSyncedCount++;
+                            } else {
+                                console.error('Product sync failed:', data.error);
+                                productFailedCount++;
+                            }
+                        } catch (err) {
+                            console.error('Product sync failed:', err);
+                            productFailedCount++;
+                        }
+                    }
+
+                    // Clear synced products from localStorage
+                    if (productSyncedCount > 0) {
+                        localStorage.removeItem('pendingProducts');
+                        showToast('✅ ' + productSyncedCount + ' products synced successfully!', 'success');
+                    }
+
+                    if (productFailedCount > 0) {
+                        showToast('⚠️ ' + productFailedCount + ' products failed to sync', 'error');
+                    }
+                }
+
+                // Get pending sales from IndexedDB
+                const pendingSales = await offlineDB.getPendingSales();
+
+                if (pendingSales.length === 0 && pendingProducts.length === 0) {
+                    console.log('No pending data to sync');
+                    return;
+                }
+
+                if (pendingSales.length > 0) {
+                    console.log('📤 Syncing', pendingSales.length, 'pending sales...');
+                    showToast('🔄 Syncing ' + pendingSales.length + ' offline sales...', 'info');
+                }
+
+                let saleSyncedCount = 0;
+                let saleFailedCount = 0;
+
+                for (const sale of pendingSales) {
+                    try {
+                        const response = await fetch('/api/sync-sale', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                            },
+                            body: JSON.stringify(sale)
+                        });
+
+                        const data = await response.json();
+
+                        if (data.success) {
+                            // Remove from IndexedDB after successful sync
+                            await offlineDB.removePendingSale(sale.id);
+                            saleSyncedCount++;
+                        } else {
+                            console.error('Sync failed for sale:', data.message);
+                            saleFailedCount++;
+                        }
+                    } catch (err) {
+                        console.error('Sync failed:', err);
+                        saleFailedCount++;
+                    }
+                }
+
+                if (saleSyncedCount > 0) {
+                    showToast('✅ ' + saleSyncedCount + ' sales synced successfully!', 'success');
+                }
+
+                if (saleFailedCount > 0) {
+                    showToast('⚠️ ' + saleFailedCount + ' sales failed to sync', 'error');
+                }
+
+                // Reload page if anything was synced
+                if (productSyncedCount > 0 || saleSyncedCount > 0) {
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
+                }
+            } catch (err) {
+                console.error('Error syncing pending data:', err);
+                showToast('❌ Failed to sync pending data', 'error');
+            }
+        }
+
+        // Toast notification helper
+        function showToast(message, type = 'info') {
+            const colors = {
+                info: '#17a2b8',
+                success: '#28a745',
+                error: '#dc3545',
+                warning: '#ffc107'
+            };
+
+            const toast = document.createElement('div');
+            toast.style.cssText = `
+                position: fixed;
+                top: 80px;
+                right: 20px;
+                background: ${colors[type]};
+                color: white;
+                padding: 15px 20px;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                z-index: 10000;
+                animation: slideInRight 0.3s;
+                max-width: 300px;
+            `;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.animation = 'slideOutRight 0.3s';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // Request notification permission
+        async function requestNotificationPermission() {
+            if ('Notification' in window && 'serviceWorker' in navigator) {
+                const permission = await Notification.requestPermission();
+                if (permission === 'granted') {
+                    console.log('✅ Notification permission granted');
+                    return true;
+                } else {
+                    console.log('❌ Notification permission denied');
+                    return false;
+                }
+            }
+            return false;
+        }
+
+        // Show browser notification
+        function showNotification(title, options = {}) {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                    // Use service worker to show notification (works even when tab is closed)
+                    navigator.serviceWorker.ready.then(registration => {
+                        registration.showNotification(title, {
+                            icon: '/icon-192.png',
+                            badge: '/icon-192.png',
+                            vibrate: [200, 100, 200],
+                            ...options
+                        });
+                    });
+                } else {
+                    // Fallback to regular notification
+                    new Notification(title, {
+                        icon: '/icon-192.png',
+                        ...options
+                    });
+                }
+            }
+        }
+
+        // Check for pending data on page load and auto-sync if online
+        window.addEventListener('load', async () => {
+            // Request notification permission on first load
+            if ('Notification' in window && Notification.permission === 'default') {
+                setTimeout(() => {
+                    requestNotificationPermission();
+                }, 3000); // Wait 3 seconds before asking
+            }
+            try {
+                const pendingProducts = JSON.parse(localStorage.getItem('pendingProducts') || '[]');
+                const pendingSales = await offlineDB.getPendingSales();
+
+                const totalPending = pendingProducts.length + pendingSales.length;
+
+                if (totalPending > 0) {
+                    console.log('📦 Found pending data:', { products: pendingProducts.length, sales: pendingSales.length });
+
+                    if (navigator.onLine) {
+                        // Auto-sync if online
+                        console.log('🌐 Online - auto-syncing pending data...');
+                        showToast('🔄 Syncing ' + totalPending + ' offline item(s)...', 'info');
+                        setTimeout(() => {
+                            syncPendingData();
+                        }, 1500);
+                    } else {
+                        // Just show notification if offline
+                        let message = '📦 You have ';
+                        if (pendingProducts.length > 0) {
+                            message += pendingProducts.length + ' offline product' + (pendingProducts.length > 1 ? 's' : '');
+                        }
+                        if (pendingSales.length > 0) {
+                            if (pendingProducts.length > 0) message += ' and ';
+                            message += pendingSales.length + ' offline sale' + (pendingSales.length > 1 ? 's' : '');
+                        }
+                        message += ' waiting to sync';
+                        showToast(message, 'warning');
+                    }
+                }
+            } catch (err) {
+                console.error('Error checking pending data:', err);
+            }
+        });
     </script>
+
+    <!-- Offline Indicator -->
+    <div id="offline-indicator" style="display:none; position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#dc3545; color:#fff; padding:12px 24px; border-radius:25px; box-shadow:0 4px 12px rgba(0,0,0,0.3); z-index:9999; font-weight:600; animation:slideUp 0.3s;">
+        <i class="fas fa-wifi-slash"></i>
+        You're Offline - Sales will sync when connected
+    </div>
+
+    <!-- PWA Install Prompt -->
+    <div id="install-prompt" style="display:none; position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#4CAF50; color:#fff; padding:15px 25px; border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,0.3); z-index:9999; max-width:90%; text-align:center;">
+        <p style="margin:0 0 10px 0; font-weight:600;">📱 Install StreetPOS on your device!</p>
+        <button id="install-button" style="background:#fff; color:#4CAF50; border:none; padding:8px 20px; border-radius:5px; font-weight:600; cursor:pointer; margin-right:10px;">
+            Install Now
+        </button>
+        <button id="dismiss-button" style="background:transparent; color:#fff; border:1px solid #fff; padding:8px 20px; border-radius:5px; font-weight:600; cursor:pointer;">
+            Maybe Later
+        </button>
+    </div>
+
+    <style>
+        @keyframes slideUp {
+            from {
+                transform: translateX(-50%) translateY(100px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(-50%) translateY(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOutRight {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+
+            to {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+        }
+    </style>
 </body>
 
 </html>

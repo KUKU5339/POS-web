@@ -4,6 +4,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\StockAlertController;
 use Illuminate\Support\Facades\Route;
@@ -39,10 +40,18 @@ Route::middleware('auth')->group(function () {
     Route::get('/expenses', [ExpenseController::class, 'index'])->name('expenses.index');
     Route::post('/expenses', [ExpenseController::class, 'store'])->name('expenses.store');
     Route::delete('/expenses/{expense}', [ExpenseController::class, 'destroy'])->name('expenses.destroy');
-    
+
     // Stock Alerts
     Route::get('/stock-alerts', [StockAlertController::class, 'index'])->name('stock-alerts.index');
     Route::post('/stock-alerts/threshold', [StockAlertController::class, 'updateThreshold'])->name('stock-alerts.threshold');
     Route::post('/stock-alerts/toggle', [StockAlertController::class, 'toggleAlerts'])->name('stock-alerts.toggle');
     Route::get('/stock-alerts/shopping-list', [StockAlertController::class, 'generateShoppingList'])->name('stock-alerts.shopping-list');
+
+    // Sales Reports
+    Route::get('/reports/daily-sales', [ReportController::class, 'dailySales'])->name('reports.daily-sales');
+    Route::get('/reports/download', [ReportController::class, 'downloadReport'])->name('reports.download');
+
+    // Offline sync endpoint
+    Route::post('/api/sync-sale', [SaleController::class, 'syncOfflineSale']);
+    Route::post('/api/sync-product', [ProductController::class, 'syncOfflineProduct']);
 });
