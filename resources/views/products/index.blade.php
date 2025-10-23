@@ -533,9 +533,13 @@
 
     // Check for pending products on page load and show banner
     function checkPendingProducts() {
-        const pendingProducts = JSON.parse(localStorage.getItem('pendingProducts') || '[]');
-        if (pendingProducts.length > 0 && !navigator.onLine) {
-            showPendingProductsBanner(pendingProducts.length);
+        try {
+            const pendingProducts = JSON.parse(localStorage.getItem('pendingProducts') || '[]');
+            if (pendingProducts.length > 0 && !navigator.onLine) {
+                showPendingProductsBanner(pendingProducts.length);
+            }
+        } catch (err) {
+            console.error('Failed to check pending products:', err);
         }
     }
 
@@ -616,31 +620,36 @@
                 // Check offline status
                 if (!navigator.onLine) {
                     console.log('📴 Offline detected - saving to localStorage');
-                    // Make absolutely sure the form doesn't submit
-                    // Save to localStorage when offline
-                    const pendingProducts = JSON.parse(localStorage.getItem('pendingProducts') || '[]');
 
-                    const productData = {
-                        name: name,
-                        price: price,
-                        stock: stock,
-                        timestamp: new Date().toISOString()
-                    };
+                    try {
+                        // Save to localStorage when offline
+                        const pendingProducts = JSON.parse(localStorage.getItem('pendingProducts') || '[]');
 
-                    pendingProducts.push(productData);
-                    localStorage.setItem('pendingProducts', JSON.stringify(pendingProducts));
+                        const productData = {
+                            name: name,
+                            price: price,
+                            stock: stock,
+                            timestamp: new Date().toISOString()
+                        };
 
-                    console.log('✅ Product saved offline:', productData);
-                    console.log('📦 Total pending products:', pendingProducts.length);
+                        pendingProducts.push(productData);
+                        localStorage.setItem('pendingProducts', JSON.stringify(pendingProducts));
 
-                    // Show success message
-                    alert('✅ Product saved offline!\n\nProduct: ' + name + '\nPrice: ₱' + price.toFixed(2) + '\nStock: ' + stock + '\n\n' + pendingProducts.length + ' product(s) waiting to sync.\n\nThey will automatically sync when you\'re back online.');
+                        console.log('✅ Product saved offline:', productData);
+                        console.log('📦 Total pending products:', pendingProducts.length);
 
-                    closeSidebars();
-                    this.reset();
+                        // Show success message
+                        alert('✅ Product saved offline!\n\nProduct: ' + name + '\nPrice: ₱' + price.toFixed(2) + '\nStock: ' + stock + '\n\n' + pendingProducts.length + ' product(s) waiting to sync.\n\nThey will automatically sync when you\'re back online.');
 
-                    // Show a banner about pending products
-                    showPendingProductsBanner(pendingProducts.length);
+                        closeSidebars();
+                        this.reset();
+
+                        // Show a banner about pending products
+                        showPendingProductsBanner(pendingProducts.length);
+                    } catch (err) {
+                        console.error('Failed to save to localStorage:', err);
+                        alert('❌ Failed to save product offline.\n\nError: ' + err.message + '\n\nPlease check if your browser allows local storage.');
+                    }
 
                     return false;
                 }

@@ -38,6 +38,15 @@ class DashboardController extends Controller
                 return $p;
             });
 
+        // Today's sales for daily summary notification
+        $todaySales = Sale::where('user_id', $userId)
+            ->whereDate('created_at', today())
+            ->count();
+
+        $todayRevenue = Sale::where('user_id', $userId)
+            ->whereDate('created_at', today())
+            ->sum('total');
+
         return view('dashboard', compact(
             'totalSales',
             'totalProducts',
@@ -45,7 +54,9 @@ class DashboardController extends Controller
             'lowStock',
             'products',
             'sales',
-            'topProducts'
+            'topProducts',
+            'todaySales',
+            'todayRevenue'
         ));
     }
 }

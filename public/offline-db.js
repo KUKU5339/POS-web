@@ -48,74 +48,102 @@ class OfflineDB {
 
     // Save products to IndexedDB
     async saveProducts(products) {
-        if (!this.db) await this.init();
+        try {
+            if (!this.db) await this.init();
 
-        const transaction = this.db.transaction(['products'], 'readwrite');
-        const store = transaction.objectStore('products');
+            const transaction = this.db.transaction(['products'], 'readwrite');
+            const store = transaction.objectStore('products');
 
-        // Clear existing products first
-        await store.clear();
+            // Clear existing products first
+            await store.clear();
 
-        // Add all products
-        products.forEach(product => {
-            store.put(product);
-        });
+            // Add all products with error handling
+            for (const product of products) {
+                try {
+                    store.put(product);
+                } catch (err) {
+                    console.error('Failed to save product:', product.name, err);
+                }
+            }
 
-        return new Promise((resolve, reject) => {
-            transaction.oncomplete = () => {
-                console.log('✅ Products saved to IndexedDB:', products.length);
-                resolve();
-            };
-            transaction.onerror = () => {
-                console.error('❌ Failed to save products');
-                reject(transaction.error);
-            };
-        });
+            return new Promise((resolve, reject) => {
+                transaction.oncomplete = () => {
+                    console.log('✅ Products saved to IndexedDB:', products.length);
+                    resolve();
+                };
+                transaction.onerror = () => {
+                    console.error('❌ Failed to save products:', transaction.error);
+                    reject(transaction.error);
+                };
+                transaction.onabort = () => {
+                    console.error('❌ Transaction aborted');
+                    reject(new Error('Transaction aborted'));
+                };
+            });
+        } catch (err) {
+            console.error('❌ SaveProducts failed:', err);
+            throw err;
+        }
     }
 
     // Get all products from IndexedDB
     async getProducts() {
-        if (!this.db) await this.init();
+        try {
+            if (!this.db) await this.init();
 
-        const transaction = this.db.transaction(['products'], 'readonly');
-        const store = transaction.objectStore('products');
-        const request = store.getAll();
+            const transaction = this.db.transaction(['products'], 'readonly');
+            const store = transaction.objectStore('products');
+            const request = store.getAll();
 
-        return new Promise((resolve, reject) => {
-            request.onsuccess = () => {
-                console.log('📦 Retrieved products:', request.result.length);
-                resolve(request.result);
-            };
-            request.onerror = () => {
-                console.error('❌ Failed to get products');
-                reject(request.error);
-            };
-        });
+            return new Promise((resolve, reject) => {
+                request.onsuccess = () => {
+                    console.log('📦 Retrieved products:', request.result.length);
+                    resolve(request.result);
+                };
+                request.onerror = () => {
+                    console.error('❌ Failed to get products:', request.error);
+                    reject(request.error);
+                };
+            });
+        } catch (err) {
+            console.error('❌ GetProducts failed:', err);
+            // Return empty array as fallback
+            return [];
+        }
     }
 
     // Add a pending sale to IndexedDB
     async addPendingSale(saleData) {
-        if (!this.db) await this.init();
+        try {
+            if (!this.db) await this.init();
 
-        const transaction = this.db.transaction(['pendingSales'], 'readwrite');
-        const store = transaction.objectStore('pendingSales');
+            const transaction = this.db.transaction(['pendingSales'], 'readwrite');
+            const store = transaction.objectStore('pendingSales');
 
-        // Add timestamp
-        saleData.timestamp = new Date().toISOString();
-        saleData.synced = false;
+            // Add timestamp
+            saleData.timestamp = new Date().toISOString();
+            saleData.synced = false;
 
-        const request = store.add(saleData);
+            const request = store.add(saleData);
 
-        return new Promise((resolve, reject) => {
-            request.onsuccess = () => {
-                console.log('✅ Pending sale added to IndexedDB');
-                resolve(request.result);
-            };
-            request.onerror = () => {
-                console.error('❌ Failed to add pending sale');
-                reject(request.error);
-            };
-        });
+            return new Promise((resolve, reject) => {
+                request.onsuccess = () => {
+                    console.log('✅ Pending sale added to IndexedDB');
+                    resolve(request.result);
+                };
+                request.onerror = () => {
+                    console.error('❌ Failed to add pending sale:', request.error);
+                    reject(request.error);
+                };
+                transaction.onabort = () => {
+                    console.error('❌ Transaction aborted');
+                    reject(new Error('Transaction aborted'));
+                };
+            });
+        } catch (err) {
+            console.error('❌ AddPendingSale failed:', err);
+            throw err;
+        }
     }
 
     // Get all pending sales
@@ -180,36 +208,46 @@ class OfflineDB {
 
     // Update product stock locally (for offline mode)
     async updateProductStock(productId, newStock) {
-        if (!this.db) await this.init();
+        try {
+            if (!this.db) await this.init();
 
-        const transaction = this.db.transaction(['products'], 'readwrite');
-        const store = transaction.objectStore('products');
-        const request = store.get(productId);
+            const transaction = this.db.transaction(['products'], 'readwrite');
+            const store = transaction.objectStore('products');
+            const request = store.get(productId);
 
-        return new Promise((resolve, reject) => {
-            request.onsuccess = () => {
-                const product = request.result;
-                if (product) {
-                    product.stock = newStock;
-                    const updateRequest = store.put(product);
+            return new Promise((resolve, reject) => {
+                request.onsuccess = () => {
+                    const product = request.result;
+                    if (product) {
+                        product.stock = newStock;
+                        const updateRequest = store.put(product);
 
-                    updateRequest.onsuccess = () => {
-                        console.log('✅ Product stock updated locally');
-                        resolve(product);
-                    };
-                    updateRequest.onerror = () => {
-                        console.error('❌ Failed to update product stock');
-                        reject(updateRequest.error);
-                    };
-                } else {
-                    reject(new Error('Product not found'));
-                }
-            };
-            request.onerror = () => {
-                console.error('❌ Failed to get product for update');
-                reject(request.error);
-            };
-        });
+                        updateRequest.onsuccess = () => {
+                            console.log('✅ Product stock updated locally');
+                            resolve(product);
+                        };
+                        updateRequest.onerror = () => {
+                            console.error('❌ Failed to update product stock:', updateRequest.error);
+                            reject(updateRequest.error);
+                        };
+                    } else {
+                        console.warn('⚠️ Product not found for stock update:', productId);
+                        reject(new Error('Product not found'));
+                    }
+                };
+                request.onerror = () => {
+                    console.error('❌ Failed to get product for update:', request.error);
+                    reject(request.error);
+                };
+                transaction.onabort = () => {
+                    console.error('❌ Transaction aborted');
+                    reject(new Error('Transaction aborted'));
+                };
+            });
+        } catch (err) {
+            console.error('❌ UpdateProductStock failed:', err);
+            throw err;
+        }
     }
 }
 
