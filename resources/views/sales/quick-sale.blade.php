@@ -326,6 +326,19 @@
 <script>
     let cart = [];
 
+    // Cache products to IndexedDB on page load for offline use
+    window.addEventListener('load', async () => {
+        try {
+            const products = @json($products);
+            if (products && products.length > 0) {
+                await offlineDB.saveProducts(products);
+                console.log('✅ Products cached for offline use');
+            }
+        } catch (err) {
+            console.error('Failed to cache products:', err);
+        }
+    });
+
     function addToCart(id, name, price, maxStock) {
         const existingItem = cart.find(item => item.id === id);
 
@@ -424,30 +437,156 @@
         }
     }
 
-    function checkout() {
+    async function checkout() {
         if (cart.length === 0) return;
 
-        // Create form and submit
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = '{{ route("sales.store") }}';
+        const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
-        // CSRF token
-        const csrfInput = document.createElement('input');
-        csrfInput.type = 'hidden';
-        csrfInput.name = '_token';
-        csrfInput.value = '{{ csrf_token() }}';
-        form.appendChild(csrfInput);
+        // IMPROVED offline detection
+        const isOffline = !navigator.onLine;
 
-        // Add cart data
-        const cartInput = document.createElement('input');
-        cartInput.type = 'hidden';
-        cartInput.name = 'cart';
-        cartInput.value = JSON.stringify(cart);
-        form.appendChild(cartInput);
+        console.log('Navigator says online:', navigator.onLine);
+        console.log('Is offline:', isOffline);
 
-        document.body.appendChild(form);
-        form.submit();
+        // Check if online or offline
+        if (isOffline) {
+            // OFFLINE MODE - Save to IndexedDB
+            console.log('📴 Offline mode - saving sale to IndexedDB');
+
+            try {
+                const saleData = {
+                    cart: cart,
+                    timestamp: new Date().toISOString(),
+                    total: total
+                };
+
+                await offlineDB.addPendingSale(saleData);
+
+                // Update local product stock
+                for (const item of cart) {
+                    const products = await offlineDB.getProducts();
+                    const product = products.find(p => p.id === item.id);
+                    if (product) {
+                        await offlineDB.updateProductStock(item.id, product.stock - item.quantity);
+                    }
+                }
+
+                // Show success message
+                alert('✅ Sale saved offline!\n\nTotal: ₱' + total.toFixed(2) + '\n\nThis sale will automatically sync when you reconnect to the internet.');
+
+                // Clear cart
+                cart = [];
+                updateCart();
+
+                // Show toast
+                showToast('📦 Sale saved offline. Will sync when online.', 'success');
+            } catch (err) {
+                console.error('Failed to save offline sale:', err);
+                alert('❌ Failed to save sale offline. Please try again.');
+            }
+
+            return;
+        }
+
+        // ONLINE MODE - Submit via AJAX
+        console.log('🌐 Online mode - submitting via AJAX');
+
+        fetch('{{ route("sales.store") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    cart: cart
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Clear cart first
+                    cart = [];
+                    updateCart();
+
+                    // Show success with receipt option
+                    if (confirm('✅ Sale completed!\n\nTotal: ₱' + total.toFixed(2) + '\n\nWould you like to view the receipt?')) {
+                        // Open receipt in new tab
+                        window.open('/sales/' + data.sale_id + '/receipt', '_blank');
+                    }
+
+                    showToast('✅ Sale completed successfully!', 'success');
+                } else {
+                    alert('❌ Error: ' + (data.message || 'Failed to complete sale'));
+                    showToast('❌ Sale failed. Please try again.', 'error');
+                }
+            })
+            .catch(async error => {
+                console.error('Sale error:', error);
+
+                // FALLBACK: If fetch fails, assume offline and save to IndexedDB
+                console.log('⚠️ Fetch failed - saving offline as fallback');
+
+                try {
+                    const saleData = {
+                        cart: cart,
+                        timestamp: new Date().toISOString(),
+                        total: total
+                    };
+
+                    await offlineDB.addPendingSale(saleData);
+
+                    // Update local product stock
+                    for (const item of cart) {
+                        const products = await offlineDB.getProducts();
+                        const product = products.find(p => p.id === item.id);
+                        if (product) {
+                            await offlineDB.updateProductStock(item.id, product.stock - item.quantity);
+                        }
+                    }
+
+                    alert('✅ Sale saved offline!\n\nTotal: ₱' + total.toFixed(2) + '\n\nConnection failed. This sale will sync when you reconnect.');
+
+                    cart = [];
+                    updateCart();
+                    showToast('📦 Sale saved offline due to connection error', 'success');
+                } catch (err) {
+                    console.error('Failed to save offline sale:', err);
+                    alert('❌ Failed to save sale. Please try again.');
+                }
+            });
+    }
+
+    // Toast helper function (add this too)
+    function showToast(message, type = 'info') {
+        const colors = {
+            info: '#17a2b8',
+            success: '#28a745',
+            error: '#dc3545',
+            warning: '#ffc107'
+        };
+
+        const toast = document.createElement('div');
+        toast.style.cssText = `
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        background: ${colors[type]};
+        color: white;
+        padding: 15px 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        z-index: 10000;
+        animation: slideInRight 0.3s;
+        max-width: 300px;
+    `;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+            toast.style.animation = 'slideOutRight 0.3s';
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
     }
 </script>
 

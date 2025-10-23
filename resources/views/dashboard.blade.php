@@ -431,3 +431,32 @@
 </div>
 
 @endsection
+@push('scripts')
+<script>
+    // Show daily summary notification (once per day)
+    window.addEventListener('load', () => {
+        const lastNotification = localStorage.getItem('lastDailySummary');
+        const today = new Date().toDateString();
+
+        if (lastNotification !== today) {
+            // Check if it's evening (after 6 PM) for end-of-day summary
+            const hour = new Date().getHours();
+            if (hour >= 18) {
+                const todaySales = {{ $todaySales }};
+                const todayRevenue = {{ $todayRevenue }};
+
+                if (todaySales > 0 && typeof showNotification === 'function') {
+                    setTimeout(() => {
+                        showNotification('📊 Daily Sales Summary', {
+                            body: `Today: ${todaySales} sales totaling ₱${todayRevenue.toFixed(2)}`,
+                            tag: 'daily-summary',
+                            requireInteraction: true
+                        });
+                        localStorage.setItem('lastDailySummary', today);
+                    }, 2000);
+                }
+            }
+        }
+    });
+</script>
+@endpush

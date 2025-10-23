@@ -183,11 +183,12 @@
 <!-- Add Sale Sidebar -->
 <div id="addSaleSidebar" style="position:fixed; top:0; right:-100%; width:90%; max-width:400px; height:100%; background:#fff; border-left:4px solid #800000; box-shadow:-2px 0 8px rgba(0,0,0,0.3); padding:20px; transition:right 0.3s ease; overflow-y:auto; z-index:1000;">
     <h3 style="color:#800000; margin-bottom:15px;">➕ Record New Sale</h3>
-    <form method="POST" action="{{ route('sales.store') }}">
+    <form method="POST" action="{{ route('sales.store') }}" id="addSaleForm">
         @csrf
         <div style="margin-bottom:12px;">
             <label><b>Product:</b></label>
-            <select name="product_id" id="productSelect" required style="width:100%; padding:10px; border:1px solid #ccc; border-radius:5px;">
+            <select name="product_id" id="productSelect" required
+                style="width:100%; padding:10px; border:1px solid #ccc; border-radius:5px;">
                 <option value="" disabled selected>-- Select Product --</option>
                 @foreach($products as $product)
                 <option value="{{ $product->id }}" data-price="{{ $product->price }}" data-stock="{{ $product->stock }}">
@@ -198,17 +199,22 @@
         </div>
         <div style="margin-bottom:12px;">
             <label><b>Quantity:</b></label>
-            <input type="number" id="quantityInput" name="quantity" min="1" required style="width:100%; padding:10px; border:1px solid #ccc; border-radius:5px;">
+            <input type="number" id="quantityInput" name="quantity" min="1" required
+                style="width:100%; padding:10px; border:1px solid #ccc; border-radius:5px;">
             <small id="stockWarning" style="color:#e65100; font-size:12px; display:none;"></small>
         </div>
         <div style="margin-bottom:12px;">
             <label><b>Total:</b></label>
             <input type="text" id="totalInput" readonly style="width:100%; padding:10px; background:#f8f8f8; border:1px solid #ccc; border-radius:5px; font-weight:bold; color:#4CAF50;">
         </div>
-        <button type="submit" style="padding:10px 20px; background:#800000; color:#fff; border:none; border-radius:5px; cursor:pointer; font-weight:600;">
+        <button type="submit"
+            style="padding:10px 20px; background:#800000; color:#fff; border:none;
+                   border-radius:5px; cursor:pointer; font-weight:600;">
             <i class="fas fa-save"></i> Save Sale
         </button>
-        <button type="button" onclick="closeSidebars()" style="padding:10px 20px; background:#ccc; color:#000; border:none; border-radius:5px; cursor:pointer; margin-left:10px;">
+        <button type="button" onclick="closeSidebars()"
+            style="padding:10px 20px; background:#ccc; color:#000; border:none;
+                   border-radius:5px; cursor:pointer; margin-left:10px;">
             Cancel
         </button>
     </form>
@@ -262,5 +268,142 @@
         quantityInput.addEventListener("input", calculateTotal);
     }
 </script>
+<script>
+    // Wait for DOM to be fully loaded
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('addSaleForm');
 
+        if (!form) {
+            console.error('Form not found!');
+            return;
+        }
+
+        console.log('✅ Form found, adding submit handler');
+
+        // Intercept form submission
+        form.addEventListener('submit', function(e) {
+            console.log('📝 Form submitted');
+            e.preventDefault();
+            e.stopPropagation();
+
+            const formData = new FormData(this);
+            const productId = formData.get('product_id');
+            const quantity = parseInt(formData.get('quantity'));
+
+            if (!productId || !quantity) {
+                alert('❌ Please fill all fields');
+                return false;
+            }
+
+            // Get product details
+            const productSelect = document.getElementById('productSelect');
+            const selectedOption = productSelect.options[productSelect.selectedIndex];
+            const productName = selectedOption.text.split(' (')[0];
+            const price = parseFloat(selectedOption.dataset.price);
+            const total = price * quantity;
+
+            const isOffline = !navigator.onLine;
+            console.log('Navigator says online:', navigator.onLine);
+            console.log('Is offline:', isOffline);
+
+            // Check if offline
+            if (isOffline) {
+                console.log('📴 Offline mode - saving sale locally');
+
+                const pendingSales = JSON.parse(localStorage.getItem('pendingSales') || '[]');
+
+                const saleData = {
+                    cart: [{
+                        id: productId,
+                        name: productName,
+                        price: price,
+                        quantity: quantity,
+                        maxStock: 999
+                    }],
+                    timestamp: new Date().toISOString(),
+                    total: total
+                };
+
+                pendingSales.push(saleData);
+                localStorage.setItem('pendingSales', JSON.stringify(pendingSales));
+
+                // Show success message
+                alert('✅ Sale saved offline!\n\n' + productName + '\nQty: ' + quantity + '\nTotal: ₱' + total.toFixed(2) + '\n\nWill sync when online.');
+
+                // Close sidebar and reset form
+                closeSidebars();
+                form.reset();
+                document.getElementById('totalInput').value = '';
+
+                return false;
+            }
+
+            // ONLINE MODE - Submit via AJAX
+            console.log('🌐 Online mode - submitting via AJAX');
+
+            fetch('{{ route("sales.store") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        product_id: productId,
+                        quantity: quantity
+                    })
+                })
+                .then(response => {
+                    console.log('Response received:', response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Data:', data);
+                    if (data.success) {
+                        closeSidebars();
+
+                        // Show success with receipt option
+                        if (confirm('✅ Sale saved successfully!\n\nTotal: ₱' + total.toFixed(2) + '\n\nWould you like to view the receipt?')) {
+                            window.open('/sales/' + data.sale_id + '/receipt', '_blank');
+                        }
+
+                        window.location.reload();
+                    } else {
+                        alert('❌ Error: ' + (data.message || 'Failed to save sale'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Fetch error:', error);
+
+                    // FALLBACK: If fetch fails, save offline
+                    console.log('⚠️ Fetch failed - saving offline as fallback');
+
+                    const pendingSales = JSON.parse(localStorage.getItem('pendingSales') || '[]');
+
+                    const saleData = {
+                        cart: [{
+                            id: productId,
+                            name: productName,
+                            price: price,
+                            quantity: quantity,
+                            maxStock: 999
+                        }],
+                        timestamp: new Date().toISOString(),
+                        total: total
+                    };
+
+                    pendingSales.push(saleData);
+                    localStorage.setItem('pendingSales', JSON.stringify(pendingSales));
+
+                    alert('✅ Sale saved offline!\n\nConnection failed. Will sync when online.');
+
+                    closeSidebars();
+                    form.reset();
+                    document.getElementById('totalInput').value = '';
+                });
+
+            return false;
+        }, false);
+    });
+</script>
 @endsection

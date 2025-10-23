@@ -272,6 +272,27 @@
         </div>
     </div>
 
+    <!-- Sale Notification -->
+    @if(session('sale_notification'))
+    <script>
+        window.addEventListener('load', () => {
+            const saleData = @json(session('sale_notification'));
+            if (typeof showNotification === 'function') {
+                showNotification('🎉 Sale Completed!', {
+                    body: `₱${saleData.total.toFixed(2)} - ${saleData.items} item(s) sold`,
+                    tag: 'sale-complete',
+                    vibrate: [200, 100, 200, 100, 200]
+                });
+            } else if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('🎉 Sale Completed!', {
+                    body: `₱${saleData.total.toFixed(2)} - ${saleData.items} item(s) sold`,
+                    icon: '/icon-192.png'
+                });
+            }
+        });
+    </script>
+    @endif
+
 </body>
 
 </html>
