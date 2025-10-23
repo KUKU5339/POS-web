@@ -502,7 +502,12 @@
                     cart: cart
                 })
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('HTTP ' + response.status + ': ' + response.statusText);
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.success) {
                     // Clear cart first

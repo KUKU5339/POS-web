@@ -23,6 +23,6 @@ class Sale extends Model
 
     public function getSubtotalAttribute()
     {
-        return $this->quantity * $this->product->price;
+        return $this->quantity * ($this->product->price ?? 0);
     }
 }

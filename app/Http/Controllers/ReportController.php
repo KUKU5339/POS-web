@@ -71,13 +71,19 @@ class ReportController extends Controller
         // Top selling products
         $topProducts = $sales->groupBy('product_id')->map(function ($productSales) {
             $product = $productSales->first()->product;
+
+            // Skip if product was deleted
+            if (!$product) {
+                return null;
+            }
+
             return [
                 'name' => $product->name,
                 'quantity' => $productSales->sum('quantity'),
                 'revenue' => $productSales->sum('total'),
                 'transactions' => $productSales->count()
             ];
-        })->sortByDesc('revenue')->take(10);
+        })->filter()->sortByDesc('revenue')->take(10);
 
         // Sales by hour (for today only)
         $salesByHour = [];
@@ -121,12 +127,18 @@ class ReportController extends Controller
 
         $topProducts = $sales->groupBy('product_id')->map(function ($productSales) {
             $product = $productSales->first()->product;
+
+            // Skip if product was deleted
+            if (!$product) {
+                return null;
+            }
+
             return [
                 'name' => $product->name,
                 'quantity' => $productSales->sum('quantity'),
                 'revenue' => $productSales->sum('total')
             ];
-        })->sortByDesc('revenue')->take(10);
+        })->filter()->sortByDesc('revenue')->take(10);
 
         $pdf = Pdf::loadView('reports.sales-pdf', compact(
             'sales',

@@ -162,6 +162,10 @@ class SaleController extends Controller
             return redirect()->route('sales.index')->with('error', 'Sale not found.');
         }
 
+        if (!$sale->product) {
+            return redirect()->route('sales.index')->with('error', 'Receipt cannot be generated. Product has been deleted.');
+        }
+
         return view('receipt', compact('sale'));
     }
 
@@ -174,6 +178,10 @@ class SaleController extends Controller
 
         if (!$sale) {
             return redirect()->route('sales.index')->with('error', 'Sale not found.');
+        }
+
+        if (!$sale->product) {
+            return redirect()->route('sales.index')->with('error', 'Receipt cannot be generated. Product has been deleted.');
         }
 
         $pdf = Pdf::loadView('receipt', compact('sale'));
@@ -200,6 +208,7 @@ class SaleController extends Controller
 
             $sales = [];
             $totalAmount = 0;
+            $skippedItems = [];
 
             foreach ($cartData as $item) {
                 $product = Product::where('id', $item['id'])
@@ -207,6 +216,7 @@ class SaleController extends Controller
                     ->first();
 
                 if (!$product) {
+                    $skippedItems[] = $item['name'] ?? "Product ID {$item['id']}";
                     continue;
                 }
 
@@ -236,12 +246,18 @@ class SaleController extends Controller
                 $sales[] = $sale->id;
             }
 
+            $message = 'Offline sale synced successfully';
+            if (!empty($skippedItems)) {
+                $message .= '. Warning: Some items were skipped (product not found): ' . implode(', ', $skippedItems);
+            }
+
             return response()->json([
                 'success' => true,
-                'message' => 'Offline sale synced successfully',
+                'message' => $message,
                 'total' => $totalAmount,
                 'sales_count' => count($sales),
-                'sale_ids' => $sales
+                'sale_ids' => $sales,
+                'skipped_items' => $skippedItems
             ]);
 
         } catch (\Exception $e) {
